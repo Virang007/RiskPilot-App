@@ -4,6 +4,7 @@ class SearchBarWidget extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final VoidCallback? onCameraTap;
   final String hintText;
 
   const SearchBarWidget({
@@ -11,6 +12,7 @@ class SearchBarWidget extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onClear,
+    this.onCameraTap,
     this.hintText = 'Search 2,700+ NSE stocks (e.g. RELIANCE, TCS)...',
   });
 
@@ -38,15 +40,47 @@ class SearchBarWidget extends StatelessWidget {
           hintText: hintText,
           hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13.5),
           prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF38BDF8), size: 22),
-          suffixIcon: controller.text.isNotEmpty
-              ? IconButton(
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (controller.text.isNotEmpty)
+                IconButton(
                   icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 18),
                   onPressed: () {
                     controller.clear();
                     onClear();
                   },
-                )
-              : null,
+                ),
+              if (onCameraTap != null)
+                Tooltip(
+                  message: 'Scan Stock / Share Name with Camera',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: onCameraTap,
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt_rounded,
+                          color: Color(0xFF10B981),
+                          size: 19,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         ),

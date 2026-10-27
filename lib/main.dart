@@ -7,7 +7,11 @@ import 'blocs/stock/stock_bloc.dart';
 import 'blocs/stock/stock_event.dart';
 import 'blocs/watchlist/watchlist_bloc.dart';
 import 'blocs/watchlist/watchlist_event.dart';
-import 'views/main_navigation_screen.dart';
+import 'blocs/scan_stock/scan_stock_bloc.dart';
+import 'blocs/splash/splash_bloc.dart';
+import 'repositories/ocr_service.dart';
+import 'repositories/stock_matching_engine.dart';
+import 'views/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,9 +55,19 @@ class MyApp extends StatelessWidget {
             create: (context) => WatchlistBloc(repository: stockRepository)
               ..add(const LoadWatchlistEvent()),
           ),
+          BlocProvider<ScanStockBloc>(
+            create: (context) => ScanStockBloc(
+              ocrService: OcrTextService(),
+              matchingEngine: StockMatchingEngine(),
+              stockRepository: stockRepository,
+            ),
+          ),
+          BlocProvider<SplashBloc>(
+            create: (context) => SplashBloc(stockRepository: stockRepository),
+          ),
         ],
         child: MaterialApp(
-          title: 'Dhan Broker',
+          title: 'RiskPilot',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,
@@ -70,7 +84,7 @@ class MyApp extends StatelessWidget {
               elevation: 0,
             ),
           ),
-          home: const MainNavigationScreen(),
+          home: const SplashScreen(),
         ),
       ),
     );

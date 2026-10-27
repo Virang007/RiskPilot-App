@@ -38,6 +38,8 @@ dependencies:
   equatable: ^3.0.0
   http: ^1.6.0
   shared_preferences: ^2.5.6
+  google_mlkit_text_recognition: ^0.15.0
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +66,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/dhan_nse_equity.json
+    - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
