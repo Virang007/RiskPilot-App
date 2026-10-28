@@ -9,6 +9,8 @@ import 'blocs/watchlist/watchlist_bloc.dart';
 import 'blocs/watchlist/watchlist_event.dart';
 import 'blocs/scan_stock/scan_stock_bloc.dart';
 import 'blocs/splash/splash_bloc.dart';
+import 'blocs/settings/settings_bloc.dart';
+import 'blocs/settings/settings_event.dart';
 import 'repositories/ocr_service.dart';
 import 'repositories/stock_matching_engine.dart';
 import 'views/splash_screen.dart';
@@ -64,6 +66,9 @@ class MyApp extends StatelessWidget {
           ),
           BlocProvider<SplashBloc>(
             create: (context) => SplashBloc(stockRepository: stockRepository),
+          ),
+          BlocProvider<SettingsBloc>(
+            create: (context) => SettingsBloc()..add(const LoadSettingsEvent()),
           ),
         ],
         child: MaterialApp(
