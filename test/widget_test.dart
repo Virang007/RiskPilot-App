@@ -7,5 +7,6 @@ void main() {
     final stockRepository = StockRepository();
     await tester.pumpWidget(MyApp(stockRepository: stockRepository));
     expect(find.byType(MyApp), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
   });
 }

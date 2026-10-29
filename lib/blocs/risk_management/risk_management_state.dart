@@ -13,25 +13,32 @@ class RiskManagementInitial extends RiskManagementState {
 }
 
 class RiskManagementLoaded extends RiskManagementState {
+  static const _sentinel = Object();
+
   final StockModel stock;
   final bool isBuy;
   final String productType; // 'INTRADAY' or 'CNC'
   final double entryPrice;
   final int quantity;
   final String selectedRiskMethod; // '1:1', '1:2', '1:3', 'SWING_LOW', 'PREV_LOW', 'CUSTOM'
+  final double rewardRatio; // Configurable ratio for anchors (1.0, 2.0, 3.0)
   final double stopLoss;
   final double targetPrice;
-  // BUY SL anchors (below entry)
-  final double swingLow;
-  final double prevLow;
-  // SELL SL anchors (above entry)
-  final double swingHigh;
-  final double prevHigh;
+
+  // Real market anchors (null if unavailable)
+  final double? swingLow;
+  final double? prevLow;
+  final double? swingHigh;
+  final double? prevHigh;
+
   /// True when swing/prev anchors are estimated fallbacks, not real market data.
   final bool isSwingEstimated;
   final bool isSubmitting;
   final String? submissionSuccessMsg;
   final String? submissionErrorMsg;
+  final String? validationError;
+  final String priceSource;
+  final bool isLive;
 
   const RiskManagementLoaded({
     required this.stock,
@@ -40,33 +47,60 @@ class RiskManagementLoaded extends RiskManagementState {
     required this.entryPrice,
     this.quantity = 10,
     this.selectedRiskMethod = '1:2',
+    this.rewardRatio = 2.0,
     required this.stopLoss,
     required this.targetPrice,
-    required this.swingLow,
-    required this.prevLow,
-    required this.swingHigh,
-    required this.prevHigh,
+    this.swingLow,
+    this.prevLow,
+    this.swingHigh,
+    this.prevHigh,
     this.isSwingEstimated = false,
     this.isSubmitting = false,
     this.submissionSuccessMsg,
     this.submissionErrorMsg,
+    this.validationError,
+    this.priceSource = 'UNKNOWN',
+    this.isLive = false,
   });
 
-  // Derived financial computations
-  double get riskPerShare => (entryPrice - stopLoss).abs();
+  // Derived financial computations rounded to 2 decimals
+  double get riskPerShare => _round((entryPrice - stopLoss).abs());
 
-  double get totalRisk => riskPerShare * quantity;
+  double get rewardPerShare => _round((targetPrice - entryPrice).abs());
 
-  double get potentialProfit => (targetPrice - entryPrice).abs() * quantity;
+  double get totalRisk => _round(riskPerShare * quantity);
 
-  double get estimatedOrderValue => entryPrice * quantity;
+  double get potentialProfit => _round(rewardPerShare * quantity);
+
+  double get estimatedOrderValue => _round(entryPrice * quantity);
+
+  bool get isStandardRatio {
+    if (riskPerShare <= 0.001) return false;
+    final ratio = rewardPerShare / riskPerShare;
+    return (ratio - 1.0).abs() < 0.05 ||
+        (ratio - 2.0).abs() < 0.05 ||
+        (ratio - 3.0).abs() < 0.05;
+  }
 
   String get riskRewardRatioText {
-    if (riskPerShare <= 0.001) return '1 : 1.0';
-    final rewardPerShare = (targetPrice - entryPrice).abs();
+    if (riskPerShare <= 0.001) return 'Invalid (Risk = 0)';
+    if (isBuy && (stopLoss >= entryPrice || targetPrice <= entryPrice)) {
+      return 'Invalid Direction';
+    }
+    if (!isBuy && (stopLoss <= entryPrice || targetPrice >= entryPrice)) {
+      return 'Invalid Direction';
+    }
+
     final ratio = rewardPerShare / riskPerShare;
+    final ratioStr = ratio.toStringAsFixed(ratio % 1 == 0 ? 1 : 2);
+
+    if (selectedRiskMethod == 'CUSTOM' && !isStandardRatio) {
+      return '1 : $ratioStr (Non-standard)';
+    }
     return '1 : ${ratio.toStringAsFixed(1)}';
   }
+
+  static double _round(double val) => double.parse(val.toStringAsFixed(2));
 
   RiskManagementLoaded copyWith({
     StockModel? stock,
@@ -75,6 +109,7 @@ class RiskManagementLoaded extends RiskManagementState {
     double? entryPrice,
     int? quantity,
     String? selectedRiskMethod,
+    double? rewardRatio,
     double? stopLoss,
     double? targetPrice,
     double? swingLow,
@@ -83,8 +118,11 @@ class RiskManagementLoaded extends RiskManagementState {
     double? prevHigh,
     bool? isSwingEstimated,
     bool? isSubmitting,
-    String? submissionSuccessMsg,
-    String? submissionErrorMsg,
+    String? priceSource,
+    bool? isLive,
+    Object? submissionSuccessMsg = _sentinel,
+    Object? submissionErrorMsg = _sentinel,
+    Object? validationError = _sentinel,
   }) {
     return RiskManagementLoaded(
       stock: stock ?? this.stock,
@@ -93,6 +131,7 @@ class RiskManagementLoaded extends RiskManagementState {
       entryPrice: entryPrice ?? this.entryPrice,
       quantity: quantity ?? this.quantity,
       selectedRiskMethod: selectedRiskMethod ?? this.selectedRiskMethod,
+      rewardRatio: rewardRatio ?? this.rewardRatio,
       stopLoss: stopLoss ?? this.stopLoss,
       targetPrice: targetPrice ?? this.targetPrice,
       swingLow: swingLow ?? this.swingLow,
@@ -101,8 +140,17 @@ class RiskManagementLoaded extends RiskManagementState {
       prevHigh: prevHigh ?? this.prevHigh,
       isSwingEstimated: isSwingEstimated ?? this.isSwingEstimated,
       isSubmitting: isSubmitting ?? this.isSubmitting,
-      submissionSuccessMsg: submissionSuccessMsg,
-      submissionErrorMsg: submissionErrorMsg,
+      priceSource: priceSource ?? this.priceSource,
+      isLive: isLive ?? this.isLive,
+      submissionSuccessMsg: identical(submissionSuccessMsg, _sentinel)
+          ? this.submissionSuccessMsg
+          : submissionSuccessMsg as String?,
+      submissionErrorMsg: identical(submissionErrorMsg, _sentinel)
+          ? this.submissionErrorMsg
+          : submissionErrorMsg as String?,
+      validationError: identical(validationError, _sentinel)
+          ? this.validationError
+          : validationError as String?,
     );
   }
 
@@ -114,6 +162,7 @@ class RiskManagementLoaded extends RiskManagementState {
         entryPrice,
         quantity,
         selectedRiskMethod,
+        rewardRatio,
         stopLoss,
         targetPrice,
         swingLow,
@@ -124,5 +173,8 @@ class RiskManagementLoaded extends RiskManagementState {
         isSubmitting,
         submissionSuccessMsg,
         submissionErrorMsg,
+        validationError,
+        priceSource,
+        isLive,
       ];
 }

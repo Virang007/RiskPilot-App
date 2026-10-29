@@ -19,8 +19,136 @@ class OrderPlacementResult {
   });
 }
 
+class SuperOrderLegStatus {
+  final String orderId;
+  final String orderStatus;
+  final String? slLegStatus;
+  final String? tpLegStatus;
+
+  const SuperOrderLegStatus({
+    required this.orderId,
+    required this.orderStatus,
+    this.slLegStatus,
+    this.tpLegStatus,
+  });
+
+  /// True only if both SL and TP legs are confirmed active by Dhan.
+  bool get areBothLegsActive {
+    const active = {'TRANSIT', 'PENDING', 'OPEN'};
+    final sl = slLegStatus?.toUpperCase();
+    final tp = tpLegStatus?.toUpperCase();
+    return sl != null && active.contains(sl) && tp != null && active.contains(tp);
+  }
+
+  String get legSummary {
+    return 'SL: ${slLegStatus ?? "?"} | TP: ${tpLegStatus ?? "?"}';
+  }
+}
+
 class SuperOrderService {
   static final http.Client _client = http.Client();
+
+  /// Fetch Super Order protective leg statuses from Dhan.
+  ///
+  /// Dhan does not expose GET /v2/super/orders/{id} via most backend proxies.
+  /// Strategy:
+  ///   1. Try GET /v2/orders/{orderId}  (regular order detail endpoint)
+  ///   2. Try GET /v2/super/orders/{orderId}  (super-order specific, if backend supports it)
+  ///   3. Return null on 404 / error — caller must tell user to verify in Dhan app.
+  ///
+  /// In Dhan UI "0/1 Active" means the leg EXISTS but is WAITING for the entry
+  /// order to execute before becoming live. This is NORMAL for TRANSIT orders.
+  static Future<SuperOrderLegStatus?> fetchSuperOrderStatus({
+    required String orderId,
+  }) async {
+    if (orderId.isEmpty) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(DhanTokenManager.keyAccessToken);
+    final clientId = prefs.getString(DhanTokenManager.keyClientId);
+    if (token == null || token.isEmpty) return null;
+
+    final baseUrl = AppConfig.baseUrl.replaceAll(RegExp(r'/+$'), '');
+    final headers = {
+      'Content-Type': 'application/json',
+      'access-token': token,
+      'dhanClientId': clientId ?? '',
+    };
+
+    // Endpoint priority list — try each until one returns 200.
+    final endpoints = [
+      Uri.parse('$baseUrl/v2/orders/$orderId'),
+      Uri.parse('$baseUrl/v2/super/orders/$orderId'),
+    ];
+
+    for (final uri in endpoints) {
+      debugPrint('[SUPER ORDER STATUS] Trying: $uri');
+      try {
+        final response = await _client
+            .get(uri, headers: headers)
+            .timeout(const Duration(seconds: 8));
+
+        debugPrint('[SUPER ORDER STATUS] ${response.statusCode}: ${response.body}');
+
+        if (response.statusCode == 404) {
+          // This endpoint not available on backend — try next
+          continue;
+        }
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          Map<String, dynamic> data = {};
+          try {
+            data = jsonDecode(response.body);
+          } catch (_) {}
+
+          final orderStatus = data['orderStatus']?.toString() ?? 'UNKNOWN';
+          String? slStatus;
+          String? tpStatus;
+
+          // Dhan field names (observed from API responses)
+          if (data.containsKey('stopLossOrderStatus')) {
+            slStatus = data['stopLossOrderStatus']?.toString();
+          }
+          if (data.containsKey('targetOrderStatus')) {
+            tpStatus = data['targetOrderStatus']?.toString();
+          }
+
+          // Alternative layout: legs array
+          if ((slStatus == null || tpStatus == null) && data.containsKey('legs')) {
+            final legs = data['legs'];
+            if (legs is List) {
+              for (final leg in legs) {
+                if (leg is Map) {
+                  final legType = (leg['legName']?.toString() ??
+                      leg['orderType']?.toString() ?? '').toUpperCase();
+                  final legSt = leg['orderStatus']?.toString();
+                  if (legType.contains('SL') || legType.contains('STOP')) {
+                    slStatus ??= legSt;
+                  } else if (legType.contains('TARGET') || legType.contains('TP')) {
+                    tpStatus ??= legSt;
+                  }
+                }
+              }
+            }
+          }
+
+          debugPrint('[SUPER ORDER STATUS] ✅ Order=$orderStatus SL=$slStatus TP=$tpStatus');
+          return SuperOrderLegStatus(
+            orderId: orderId,
+            orderStatus: orderStatus,
+            slLegStatus: slStatus,
+            tpLegStatus: tpStatus,
+          );
+        }
+        // Non-200, non-404 → break and return null
+        break;
+      } catch (e) {
+        debugPrint('[SUPER ORDER STATUS] Exception on $uri: $e');
+      }
+    }
+
+    debugPrint('[SUPER ORDER STATUS] Could not fetch leg status for order $orderId');
+    return null;
+  }
 
   /// Place Super Order with Entry + Target (TP) + Stop Loss (SL)
   static Future<OrderPlacementResult> placeSuperOrder({

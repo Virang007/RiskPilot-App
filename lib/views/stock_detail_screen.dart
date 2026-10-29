@@ -290,6 +290,47 @@ class _StockDetailView extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (detailData != null) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: detailData.isLive
+                            ? const Color(0xFF10B981).withValues(alpha: 0.18)
+                            : const Color(0xFF64748B).withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(
+                          color: detailData.isLive
+                              ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                              : const Color(0xFF64748B).withValues(alpha: 0.4),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: detailData.isLive ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            detailData.isLive ? 'LIVE' : (detailData.priceSource == 'YAHOO_FINANCE' ? 'YAHOO' : 'DELAYED'),
+                            style: TextStyle(
+                              color: detailData.isLive ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 3),
@@ -317,7 +358,7 @@ class _StockDetailView extends StatelessWidget {
     Color badgeBgColor,
     bool isNegative,
   ) {
-    final price = data?.currentPrice ?? (stock.lastPrice > 0 ? stock.lastPrice : 692.75);
+    final price = data?.currentPrice ?? (stock.lastPrice > 0 ? stock.lastPrice : 0.0);
     final change = data?.change ?? stock.change;
     final changePct = data?.changePercent ?? stock.changePercent;
 
@@ -326,7 +367,7 @@ class _StockDetailView extends StatelessWidget {
       children: [
         // Main Price in Rupee
         Text(
-          '₹${price.toStringAsFixed(2)}',
+          price > 0 ? '₹${price.toStringAsFixed(2)}' : '₹--',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 34,
@@ -460,12 +501,18 @@ class _StockDetailView extends StatelessWidget {
   }
 
   Widget _buildKeyStatisticsGrid(StockDetailData? data) {
-    final openVal = data?.open != null && data!.open > 0 ? '₹${data.open.toStringAsFixed(2)}' : '₹686.85';
-    final highVal = data?.high != null && data!.high > 0 ? '₹${data.high.toStringAsFixed(2)}' : '₹696.15';
-    final lowVal = data?.low != null && data!.low > 0 ? '₹${data.low.toStringAsFixed(2)}' : '₹686.85';
-    final marketCapVal = data?.marketCapFormatted ?? '₹1,50,000 Cr';
-    final peRatioVal = data?.peRatioFormatted ?? '26.4';
-    final volumeVal = data?.volumeFormatted ?? '107.0L';
+    final openVal = (data?.open != null && data!.open > 0)
+        ? '₹${data.open.toStringAsFixed(2)}'
+        : (stock.lastPrice > 0 ? '₹${stock.lastPrice.toStringAsFixed(2)}' : '-');
+    final highVal = (data?.high != null && data!.high > 0)
+        ? '₹${data.high.toStringAsFixed(2)}'
+        : (stock.lastPrice > 0 ? '₹${stock.lastPrice.toStringAsFixed(2)}' : '-');
+    final lowVal = (data?.low != null && data!.low > 0)
+        ? '₹${data.low.toStringAsFixed(2)}'
+        : (stock.lastPrice > 0 ? '₹${stock.lastPrice.toStringAsFixed(2)}' : '-');
+    final marketCapVal = data?.marketCapFormatted ?? '-';
+    final peRatioVal = data?.peRatioFormatted ?? '-';
+    final volumeVal = data?.volumeFormatted ?? '-';
 
     return Column(
       children: [
@@ -557,6 +604,8 @@ class _StockDetailView extends StatelessWidget {
                     stock: stock,
                     isBuy: true,
                     initialPrice: detailData?.currentPrice ?? stock.lastPrice,
+                    priceSource: detailData?.priceSource ?? 'CACHED',
+                    isLive: detailData?.isLive ?? false,
                     // BUY SL anchors: levels below entry price
                     swingLow: detailData != null && detailData.low > 0
                         ? detailData.low * 0.99  // ~1% below today's low
@@ -599,6 +648,8 @@ class _StockDetailView extends StatelessWidget {
                     stock: stock,
                     isBuy: false,
                     initialPrice: detailData?.currentPrice ?? stock.lastPrice,
+                    priceSource: detailData?.priceSource ?? 'CACHED',
+                    isLive: detailData?.isLive ?? false,
                     // SELL SL anchors: levels ABOVE entry price (resistance zones)
                     swingHigh: detailData != null && detailData.high > 0
                         ? detailData.high * 1.01  // ~1% above today's high

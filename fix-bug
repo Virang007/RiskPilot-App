@@ -1,0 +1,57 @@
+## Fix Dhan Super Order: Incorrect 1:1 Risk-Reward and Price Source Issues
+
+Review and fix the existing Flutter BLoC trading flow using the actual production order evidence below. Do not just explain the issue—inspect the existing code, identify the root cause, implement the fix, and run relevant tests.All 6 risk methods (1:1, 1:2, 1:3, SWING_LOW, PREV_LOW, CUSTOM) fixed with correct SL/TP direction
+
+### Actual order evidence
+
+Dhan order:
+- Symbol: Pranav Constructions
+- Side: BUY
+- Product: Intraday
+- Actual executed entry price: ₹91.94
+- Quantity: 1
+- Stop Loss: ₹89.90
+- Target: ₹93.56
+- Selected risk-reward ratio: 1:1
+
+Actual calculation using the executed entry price:
+- Risk = 91.94 - 89.90 = ₹2.04
+- Reward = 93.56 - 91.94 = ₹1.62
+- Actual ratio ≈ 1:0.79, not 1:1
+- If entry is ₹91.94 and SL is ₹89.90, the 1:1 target should be ₹93.98.
+
+Console evidence:
+- Dhan live quote request was skipped because Data APIs were not subscribed.
+- Yahoo Finance was used as the price source.
+- The app submitted this Super Order payload:
+  `{"transactionType":"BUY","exchangeSegment":"NSE_EQ","productType":"INTRADAY","orderType":"MARKET","securityId":"766000","quantity":1,"price":0.0,"targetPrice":93.56,"stopLossPrice":89.9,"trailingJump":0.0}`
+- Dhan returned HTTP 200 with order status `TRANSIT`.
+- The final trade executed at ₹91.94.
+- Dhan UI displays Target `0/1 Active` and Stop Loss `0/1 Active`. Verify the actual leg/order statuses instead of assuming both protective legs are active.
+
+### Required work
+
+1. Trace the complete flow from `SelectRiskMethodEvent('1:1')` through entry-price selection, SL/TP calculation, state updates, `SubmitOrderEvent`, and the final Super Order request.
+2. Identify why selecting 1:1 produced a target that resulted in less reward than risk. Do not assume the price source is the only cause; prove the root cause from the code and logs.
+3. Fix the BUY and SELL formulas:
+   - BUY risk = entry price - stop-loss price.
+   - BUY target = entry price + risk × reward ratio.
+   - SELL risk = stop-loss price - entry price.
+   - SELL target = entry price - risk × reward ratio.
+4. Ensure the selected ratio is preserved correctly. If the user changes SL or the relevant entry reference price, recalculate TP according to the selected ratio, except in CUSTOM mode where manual values must be preserved according to existing intended behavior.
+5. Inspect how Yahoo Finance, cached prices, and Dhan execution prices are used. Do not represent Yahoo Finance or cached prices as live Dhan quotes. If a live quote is unavailable, clearly identify the reference price and its limitations.
+6. Before submitting an order, validate that SL and TP are on the correct side of the entry and that the calculated reward/risk matches the selected ratio within a suitable tick-size tolerance. Never silently submit an invalid or inconsistent ratio. Display a clear error if validation fails.
+7. Do not assume the market fill price can be guaranteed in advance. Handle the difference between the reference price and actual execution price explicitly, and verify whether the broker's supported order type allows the required protection.
+8. Investigate Dhan Super Order child-leg statuses. A successful entry order must not be treated as proof that the SL and target legs are active. Use the existing supported API and verify actual statuses; report a clear warning if protection is missing or inactive. Do not create duplicate SL/TP orders or blindly resubmit protective orders.
+9. Preserve existing functionality, UI, event names where possible, quantity logic, risk methods, swing-low/high logic, previous-low/high logic, CUSTOM behavior, and Dhan integration. Do not introduce unrelated architecture or dependencies.
+10. Add or update tests for BUY and SELL at 1:1, 1:2, SL changes after ratio selection, reference-price changes, invalid prices, CUSTOM mode, and submission payload consistency.
+
+### Acceptance criteria
+
+- A valid BUY trade with entry ₹91.94 and SL ₹89.90 at 1:1 calculates TP ₹93.98.
+- A valid SELL trade calculates its target below entry using the same reward/risk principle.
+- The selected ratio, displayed preview, final payload, and validation use consistent values.
+- No claim is made that a Super Order or its protective legs are active without verifying their statuses.
+- Existing unrelated features are not removed or changed.
+
+Inspect the actual source files before editing. Implement the fix, run the available tests/analyzers, and report the root cause, files changed, test results, and any remaining limitation. Do not merely provide suggested code or a plan.

@@ -17,6 +17,7 @@ class StockDetailData {
   final List<double> chartPoints;
   final String timeframe;
   final bool isLive;
+  final String priceSource; // 'DHAN_LIVE', 'YAHOO_FINANCE', 'YAHOO_CANDLE_CLOSE', 'CACHED', 'UNAVAILABLE'
 
   const StockDetailData({
     required this.symbol,
@@ -36,6 +37,7 @@ class StockDetailData {
     required this.volumeFormatted,
     required this.chartPoints,
     required this.timeframe,
-    this.isLive = true,
+    this.isLive = false,
+    this.priceSource = 'UNKNOWN',
   });
 }

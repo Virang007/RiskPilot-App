@@ -9,6 +9,8 @@ class RiskManagementScreen extends StatelessWidget {
   final StockModel stock;
   final bool isBuy;
   final double initialPrice;
+  final String priceSource;
+  final bool isLive;
   // BUY anchors
   final double? swingLow;
   final double? prevLow;
@@ -21,6 +23,8 @@ class RiskManagementScreen extends StatelessWidget {
     required this.stock,
     required this.isBuy,
     required this.initialPrice,
+    this.priceSource = 'UNKNOWN',
+    this.isLive = false,
     this.swingLow,
     this.prevLow,
     this.swingHigh,
@@ -35,6 +39,8 @@ class RiskManagementScreen extends StatelessWidget {
           stock: stock,
           isBuy: isBuy,
           currentPrice: initialPrice,
+          priceSource: priceSource,
+          isLive: isLive,
           swingLow: swingLow,
           prevLow: prevLow,
           swingHigh: swingHigh,
@@ -70,27 +76,13 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
   }
 
   void _syncControllers(RiskManagementLoaded state) {
-    // Only sync when the method is NOT CUSTOM (auto-calculated values).
-    // While user is typing in CUSTOM mode, don't overwrite.
-    if (state.selectedRiskMethod != 'CUSTOM') {
-      if (state.stopLoss != _lastSl) {
-        _slController.text = state.stopLoss.toStringAsFixed(2);
-        _lastSl = state.stopLoss;
-      }
-      if (state.targetPrice != _lastTp) {
-        _tpController.text = state.targetPrice.toStringAsFixed(2);
-        _lastTp = state.targetPrice;
-      }
-    } else {
-      // When switching TO custom for the first time, pre-fill with current values.
-      if (_lastSl != state.stopLoss && _slController.text.isEmpty) {
-        _slController.text = state.stopLoss.toStringAsFixed(2);
-        _lastSl = state.stopLoss;
-      }
-      if (_lastTp != state.targetPrice && _tpController.text.isEmpty) {
-        _tpController.text = state.targetPrice.toStringAsFixed(2);
-        _lastTp = state.targetPrice;
-      }
+    if (state.stopLoss != _lastSl) {
+      _slController.text = state.stopLoss.toStringAsFixed(2);
+      _lastSl = state.stopLoss;
+    }
+    if (state.targetPrice != _lastTp) {
+      _tpController.text = state.targetPrice.toStringAsFixed(2);
+      _lastTp = state.targetPrice;
     }
   }
 
@@ -155,7 +147,9 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
                 _buildSlAndTpInputs(context, state),
                 const SizedBox(height: 24),
                 _buildRiskRewardPreviewCard(state),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
+                _buildPriceSourceNotice(state),
+                _buildValidationError(state),
                 _buildConfirmButton(context, state),
                 const SizedBox(height: 24),
               ],
@@ -473,6 +467,24 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
   }
 
   Widget _buildRiskMethodSelector(BuildContext context, RiskManagementLoaded state) {
+    final String swingText;
+    final bool hasSwing = state.isBuy ? (state.swingLow != null) : (state.swingHigh != null);
+    if (hasSwing) {
+      final val = state.isBuy ? state.swingLow! : state.swingHigh!;
+      swingText = state.isBuy ? 'Swing Low (₹${val.toStringAsFixed(2)})' : 'Swing High (₹${val.toStringAsFixed(2)})';
+    } else {
+      swingText = state.isBuy ? 'Swing Low (N/A)' : 'Swing High (N/A)';
+    }
+
+    final String prevText;
+    final bool hasPrev = state.isBuy ? (state.prevLow != null) : (state.prevHigh != null);
+    if (hasPrev) {
+      final val = state.isBuy ? state.prevLow! : state.prevHigh!;
+      prevText = state.isBuy ? 'Prev Low (₹${val.toStringAsFixed(2)})' : 'Prev High (₹${val.toStringAsFixed(2)})';
+    } else {
+      prevText = state.isBuy ? 'Prev Low (N/A)' : 'Prev High (N/A)';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -485,7 +497,6 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
           ),
         ),
         const SizedBox(height: 10),
-        // Row 1: 1:1, 1:2 (Recommended), 1:3, Swing Low
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -510,17 +521,13 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
             ),
             _buildMethodChip(
               context,
-              label: state.isBuy
-                  ? 'Swing Low (₹${state.swingLow.toStringAsFixed(2)})'
-                  : 'Swing High (₹${state.swingHigh.toStringAsFixed(2)})',
+              label: swingText,
               isSelected: state.selectedRiskMethod == 'SWING_LOW',
               onTap: () => context.read<RiskManagementBloc>().add(const SelectRiskMethodEvent('SWING_LOW')),
             ),
             _buildMethodChip(
               context,
-              label: state.isBuy
-                  ? 'Prev Low (₹${state.prevLow.toStringAsFixed(2)})'
-                  : 'Prev High (₹${state.prevHigh.toStringAsFixed(2)})',
+              label: prevText,
               isSelected: state.selectedRiskMethod == 'PREV_LOW',
               onTap: () => context.read<RiskManagementBloc>().add(const SelectRiskMethodEvent('PREV_LOW')),
             ),
@@ -532,7 +539,58 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
             ),
           ],
         ),
+        if (state.selectedRiskMethod == 'SWING_LOW' || state.selectedRiskMethod == 'PREV_LOW') ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text(
+                'Reward Ratio:',
+                style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _buildRatioSubChip(context, label: '1 : 1', ratio: 1.0, currentRatio: state.rewardRatio),
+              const SizedBox(width: 8),
+              _buildRatioSubChip(context, label: '1 : 2', ratio: 2.0, currentRatio: state.rewardRatio),
+              const SizedBox(width: 8),
+              _buildRatioSubChip(context, label: '1 : 3', ratio: 3.0, currentRatio: state.rewardRatio),
+            ],
+          ),
+        ],
       ],
+    );
+  }
+
+  Widget _buildRatioSubChip(
+    BuildContext context, {
+    required String label,
+    required double ratio,
+    required double currentRatio,
+  }) {
+    final isSelected = (currentRatio - ratio).abs() < 0.05;
+    return GestureDetector(
+      onTap: () => context.read<RiskManagementBloc>().add(SetRewardRatioEvent(ratio)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF1E2838),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFF334155),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 12,
+          ),
+        ),
+      ),
     );
   }
 
@@ -571,24 +629,31 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isCustom)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                const Icon(Icons.edit_rounded, color: Color(0xFF2563EB), size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  'Custom mode — enter your own SL & TP below',
-                  style: TextStyle(
-                    color: const Color(0xFF2563EB),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Icon(
+                isCustom ? Icons.edit_rounded : Icons.info_outline_rounded,
+                color: isCustom ? const Color(0xFF38BDF8) : const Color(0xFF64748B),
+                size: 14,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isCustom
+                    ? 'Custom mode — edit SL & TP independently'
+                    : (state.selectedRiskMethod.startsWith('1:')
+                        ? 'Fixed ${state.selectedRiskMethod} ratio — editing SL auto-adjusts TP'
+                        : 'Anchor mode — editing SL switches to Custom'),
+                style: TextStyle(
+                  color: isCustom ? const Color(0xFF38BDF8) : const Color(0xFF94A3B8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
         Row(
           children: [
             // ── Stop Loss ───────────────────────────────────────────────────
@@ -596,81 +661,53 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Stop Loss (₹)',
                     style: TextStyle(
-                      color: isCustom
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFF94A3B8),
+                      color: Color(0xFFEF4444),
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (isCustom)
-                    TextField(
-                      controller: _slController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFF181D28),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFEF4444)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFEF4444), width: 1.8),
-                        ),
-                        hintText: '0.00',
-                        hintStyle: const TextStyle(color: Color(0xFF4B5563)),
-                      ),
-                      onSubmitted: (val) {
-                        final parsed = double.tryParse(val);
-                        if (parsed != null && parsed > 0) {
-                          context
-                              .read<RiskManagementBloc>()
-                              .add(UpdateStopLossEvent(parsed));
-                        }
-                      },
-                      onChanged: (val) {
-                        // Fire event on each change so preview updates live
-                        final parsed = double.tryParse(val);
-                        if (parsed != null && parsed > 0) {
-                          _lastSl = parsed;
-                          context
-                              .read<RiskManagementBloc>()
-                              .add(UpdateStopLossEvent(parsed));
-                        }
-                      },
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF181D28),
-                        borderRadius: BorderRadius.circular(10),
-                        border:
-                            Border.all(color: const Color(0xFF262E3E)),
-                      ),
-                      child: Text(
-                        state.stopLoss.toStringAsFixed(2),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                      ),
+                  TextField(
+                    controller: _slController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
                     ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF181D28),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.8),
+                      ),
+                      hintText: '0.00',
+                      hintStyle: const TextStyle(color: Color(0xFF4B5563)),
+                    ),
+                    onSubmitted: (val) {
+                      final parsed = double.tryParse(val);
+                      if (parsed != null && parsed > 0) {
+                        _lastSl = parsed;
+                        context.read<RiskManagementBloc>().add(UpdateStopLossEvent(parsed));
+                      }
+                    },
+                    onChanged: (val) {
+                      final parsed = double.tryParse(val);
+                      if (parsed != null && parsed > 0) {
+                        _lastSl = parsed;
+                        context.read<RiskManagementBloc>().add(UpdateStopLossEvent(parsed));
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -680,81 +717,53 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Target Price (₹)',
                     style: TextStyle(
-                      color: isCustom
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF94A3B8),
+                      color: Color(0xFF10B981),
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (isCustom)
-                    TextField(
-                      controller: _tpController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFF181D28),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              const BorderSide(color: Color(0xFF10B981)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                              color: Color(0xFF10B981), width: 1.8),
-                        ),
-                        hintText: '0.00',
-                        hintStyle: const TextStyle(color: Color(0xFF4B5563)),
-                      ),
-                      onSubmitted: (val) {
-                        final parsed = double.tryParse(val);
-                        if (parsed != null && parsed > 0) {
-                          context
-                              .read<RiskManagementBloc>()
-                              .add(UpdateTargetPriceEvent(parsed));
-                        }
-                      },
-                      onChanged: (val) {
-                        final parsed = double.tryParse(val);
-                        if (parsed != null && parsed > 0) {
-                          _lastTp = parsed;
-                          context
-                              .read<RiskManagementBloc>()
-                              .add(UpdateTargetPriceEvent(parsed));
-                        }
-                      },
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF181D28),
-                        borderRadius: BorderRadius.circular(10),
-                        border:
-                            Border.all(color: const Color(0xFF262E3E)),
-                      ),
-                      child: Text(
-                        state.targetPrice.toStringAsFixed(2),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                      ),
+                  TextField(
+                    controller: _tpController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
                     ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF181D28),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF10B981)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.8),
+                      ),
+                      hintText: '0.00',
+                      hintStyle: const TextStyle(color: Color(0xFF4B5563)),
+                    ),
+                    onSubmitted: (val) {
+                      final parsed = double.tryParse(val);
+                      if (parsed != null && parsed > 0) {
+                        _lastTp = parsed;
+                        context.read<RiskManagementBloc>().add(UpdateTargetPriceEvent(parsed));
+                      }
+                    },
+                    onChanged: (val) {
+                      final parsed = double.tryParse(val);
+                      if (parsed != null && parsed > 0) {
+                        _lastTp = parsed;
+                        context.read<RiskManagementBloc>().add(UpdateTargetPriceEvent(parsed));
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -765,6 +774,10 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
   }
 
   Widget _buildRiskRewardPreviewCard(RiskManagementLoaded state) {
+    final ratioColor = (state.selectedRiskMethod == 'CUSTOM' && !state.isStandardRatio)
+        ? const Color(0xFFF59E0B) // Amber for non-standard custom
+        : const Color(0xFF38BDF8);
+
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -794,9 +807,71 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
           const SizedBox(height: 10),
           _buildPreviewRow('Potential Profit', '₹${state.potentialProfit.toStringAsFixed(2)}', const Color(0xFF10B981)),
           const SizedBox(height: 10),
-          _buildPreviewRow('Risk : Reward Ratio', state.riskRewardRatioText, const Color(0xFF38BDF8)),
+          _buildPreviewRow('Risk : Reward Ratio', state.riskRewardRatioText, ratioColor),
           const SizedBox(height: 10),
           _buildPreviewRow('Est. Order Value', '₹${state.estimatedOrderValue.toStringAsFixed(2)}', Colors.white),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceSourceNotice(RiskManagementLoaded state) {
+    if (state.isLive) return const SizedBox.shrink();
+    final sourceLabel = state.priceSource == 'YAHOO_FINANCE'
+        ? 'Yahoo Finance (delayed)'
+        : (state.priceSource == 'CACHED' ? 'Cached market data' : 'Non-live feed');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFF182232),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF263A54), width: 0.9),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: Color(0xFF38BDF8), size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Reference price from $sourceLabel. Super order will execute at Dhan live market price.',
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValidationError(RiskManagementLoaded state) {
+    if (state.validationError == null) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFEF4444), width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              state.validationError!,
+              style: const TextStyle(
+                color: Color(0xFFFCA5A5),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );

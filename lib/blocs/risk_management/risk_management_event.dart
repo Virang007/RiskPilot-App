@@ -12,8 +12,8 @@ abstract class RiskManagementEvent extends Equatable {
 ///
 /// For BUY orders:  [swingLow] and [prevLow] are the SL anchors (below entry).
 /// For SELL orders: [swingHigh] and [prevHigh] are the SL anchors (above entry).
-/// All four are optional. When null the bloc uses a clearly-labelled estimated
-/// fallback (±1.45% / ±0.45% of entry) and does NOT treat it as real market data.
+/// All four are optional. When null, the bloc marks them as unavailable
+/// and does NOT fabricate fake market data.
 class InitRiskManagementEvent extends RiskManagementEvent {
   final StockModel stock;
   final bool isBuy;
@@ -27,20 +27,37 @@ class InitRiskManagementEvent extends RiskManagementEvent {
   final double? swingHigh;
   final double? prevHigh;
 
+  final bool isSwingEstimated;
+  final String priceSource;
+  final bool isLive;
+
   const InitRiskManagementEvent({
     required this.stock,
     required this.isBuy,
     required this.currentPrice,
+    this.priceSource = 'UNKNOWN',
+    this.isLive = false,
     this.swingLow,
     this.prevLow,
     this.swingHigh,
     this.prevHigh,
+    this.isSwingEstimated = false,
   });
 
   @override
-  List<Object?> get props => [stock, isBuy, currentPrice, swingLow, prevLow, swingHigh, prevHigh];
+  List<Object?> get props => [
+        stock,
+        isBuy,
+        currentPrice,
+        priceSource,
+        isLive,
+        swingLow,
+        prevLow,
+        swingHigh,
+        prevHigh,
+        isSwingEstimated,
+      ];
 }
-
 
 class ChangeProductTypeEvent extends RiskManagementEvent {
   final String productType; // 'INTRADAY' or 'CNC'
@@ -76,6 +93,15 @@ class SelectRiskMethodEvent extends RiskManagementEvent {
 
   @override
   List<Object?> get props => [method];
+}
+
+class SetRewardRatioEvent extends RiskManagementEvent {
+  final double rewardRatio; // 1.0, 2.0, 3.0
+
+  const SetRewardRatioEvent(this.rewardRatio);
+
+  @override
+  List<Object?> get props => [rewardRatio];
 }
 
 class UpdateStopLossEvent extends RiskManagementEvent {

@@ -84,16 +84,31 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     ConnectDhanEvent event,
     Emitter<SettingsState> emit,
   ) async {
+    final cleanClientId = event.clientId.trim();
+    final cleanPin = event.pin.trim();
+    final cleanSecret = event.totpSecret.trim();
+
+    // Persist credentials to SharedPreferences immediately so user never has to retype
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(DhanTokenManager.keyClientId, cleanClientId);
+      await prefs.setString(DhanTokenManager.keyPin, cleanPin);
+      await prefs.setString(DhanTokenManager.keyTotpSecret, cleanSecret);
+    } catch (_) {}
+
     emit(state.copyWith(
       isConnecting: true,
+      clientId: cleanClientId,
+      pin: cleanPin,
+      totpSecret: cleanSecret,
       clearDhanError: true,
       clearDhanSuccess: true,
     ));
 
     final result = await DhanTokenManager.connectDhan(
-      clientId: event.clientId,
-      pin: event.pin,
-      totpSecret: event.totpSecret,
+      clientId: cleanClientId,
+      pin: cleanPin,
+      totpSecret: cleanSecret,
     );
 
     if (result.isSuccess && result.accessToken != null) {
@@ -103,15 +118,18 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         clientName: result.clientName,
         clientUcc: result.clientUcc,
         tokenExpiry: result.expiryTime,
-        clientId: event.clientId,
-        pin: event.pin,
-        totpSecret: event.totpSecret,
+        clientId: cleanClientId,
+        pin: cleanPin,
+        totpSecret: cleanSecret,
         dhanSuccessMessage: 'Dhan Broker successfully connected! Token saved.',
         clearDhanError: true,
       ));
     } else {
       emit(state.copyWith(
         isConnecting: false,
+        clientId: cleanClientId,
+        pin: cleanPin,
+        totpSecret: cleanSecret,
         dhanErrorTitle: result.errorTitle ?? 'Authentication Error',
         dhanErrorMessage: result.errorMessage ?? 'Failed to authenticate with Dhan Broker.',
         dhanErrorType: result.errorType,
