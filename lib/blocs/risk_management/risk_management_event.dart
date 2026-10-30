@@ -122,6 +122,14 @@ class UpdateTargetPriceEvent extends RiskManagementEvent {
   List<Object?> get props => [targetPrice];
 }
 
+class FetchFundLimitEvent extends RiskManagementEvent {
+  const FetchFundLimitEvent();
+}
+
+class CalculateMarginEvent extends RiskManagementEvent {
+  const CalculateMarginEvent();
+}
+
 class SubmitOrderEvent extends RiskManagementEvent {
   const SubmitOrderEvent();
 }

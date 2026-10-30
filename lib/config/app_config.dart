@@ -11,5 +11,7 @@ class AppConfig {
   static String get generateAccessTokenUrl => '$baseUrl/app/generateAccessToken';
   static String get profileUrl => '$baseUrl/v2/profile';
   static String get superOrdersUrl => '$baseUrl/v2/super/orders';
+  static String get marginCalculatorUrl => '$baseUrl/v2/margincalculator';
+  static String get fundLimitUrl => '$baseUrl/v2/fundlimit';
   static String get healthUrl => '$baseUrl/api/health';
 }

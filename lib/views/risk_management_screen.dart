@@ -147,6 +147,8 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
                 _buildSlAndTpInputs(context, state),
                 const SizedBox(height: 24),
                 _buildRiskRewardPreviewCard(state),
+                const SizedBox(height: 18),
+                _buildMarginAndFundCard(context, state),
                 const SizedBox(height: 20),
                 _buildPriceSourceNotice(state),
                 _buildValidationError(state),
@@ -774,42 +776,677 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
   }
 
   Widget _buildRiskRewardPreviewCard(RiskManagementLoaded state) {
-    final ratioColor = (state.selectedRiskMethod == 'CUSTOM' && !state.isStandardRatio)
-        ? const Color(0xFFF59E0B) // Amber for non-standard custom
-        : const Color(0xFF38BDF8);
+    final bool isCustomNonStandard = (state.selectedRiskMethod == 'CUSTOM' && !state.isStandardRatio);
+    final Color ratioBg = isCustomNonStandard
+        ? const Color(0xFFF59E0B).withValues(alpha: 0.18)
+        : const Color(0xFF38BDF8).withValues(alpha: 0.18);
+    final Color ratioBorder = isCustomNonStandard ? const Color(0xFFF59E0B) : const Color(0xFF38BDF8);
+    final Color ratioTextColor = isCustomNonStandard ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
 
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF101726),
-        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFF111726),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF1E3A8A).withValues(alpha: 0.6),
+          color: const Color(0xFF2A3B58),
           width: 1.2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'RISK / REWARD PREVIEW',
-            style: TextStyle(
-              color: Color(0xFF38BDF8),
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              letterSpacing: 0.8,
-            ),
+          // Header Row: Title & Ratio Badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.analytics_outlined,
+                      color: Color(0xFF38BDF8),
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'RISK & REWARD ANALYSIS',
+                    style: TextStyle(
+                      color: Color(0xFFE2E8F0),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+              // R:R Ratio Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: ratioBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: ratioBorder, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'R:R  ',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      state.riskRewardRatioText,
+                      style: TextStyle(
+                        color: ratioTextColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Side-by-side Big Highlight Cards: TOTAL RISK vs TOTAL PROFIT
+          Row(
+            children: [
+              // ── TOTAL RISK BOX ─────────────────────────────────────────────
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF2C1318),
+                        const Color(0xFF1E1015),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'TOTAL RISK',
+                            style: TextStyle(
+                              color: Color(0xFFFCA5A5),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_downward_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '₹${state.totalRisk.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Color(0xFFFF6B6B),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${state.riskPerShare.toStringAsFixed(2)} / share',
+                        style: const TextStyle(
+                          color: Color(0xFFF87171),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // ── TOTAL PROFIT BOX ───────────────────────────────────────────
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF0D2820),
+                        const Color(0xFF0F1E1A),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'TOTAL PROFIT',
+                            style: TextStyle(
+                              color: Color(0xFF6EE7B7),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_upward_rounded,
+                              color: Color(0xFF10B981),
+                              size: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '+₹${state.potentialProfit.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Color(0xFF34D399),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${state.rewardPerShare.toStringAsFixed(2)} / share',
+                        style: const TextStyle(
+                          color: Color(0xFF10B981),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
-          _buildPreviewRow('Risk Per Share', '₹${state.riskPerShare.toStringAsFixed(2)}', Colors.white),
-          const SizedBox(height: 10),
-          _buildPreviewRow('Total Risk', '₹${state.totalRisk.toStringAsFixed(2)}', const Color(0xFFEF4444)),
-          const SizedBox(height: 10),
-          _buildPreviewRow('Potential Profit', '₹${state.potentialProfit.toStringAsFixed(2)}', const Color(0xFF10B981)),
-          const SizedBox(height: 10),
-          _buildPreviewRow('Risk : Reward Ratio', state.riskRewardRatioText, ratioColor),
-          const SizedBox(height: 10),
-          _buildPreviewRow('Est. Order Value', '₹${state.estimatedOrderValue.toStringAsFixed(2)}', Colors.white),
+
+          // Micro Details Row: Order Value & Method
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF182234),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF26354D), width: 0.8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.receipt_long_rounded, color: Color(0xFF94A3B8), size: 15),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Est. Order Value: ',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '₹${state.estimatedOrderValue.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Qty: ${state.quantity}',
+                  style: const TextStyle(
+                    color: Color(0xFF38BDF8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarginAndFundCard(BuildContext context, RiskManagementLoaded state) {
+    final bool isIntraday = state.productType.toUpperCase() == 'INTRADAY';
+    final bool hasShortfall = !state.isFundSufficient && state.availableBalance > 0;
+    final double displayMargin = state.requiredMargin > 0
+        ? state.requiredMargin
+        : (state.entryPrice * state.quantity * (isIntraday ? 0.2 : 1.0));
+
+    final double remainingFunds = (state.availableBalance - displayMargin).clamp(0.0, double.infinity);
+
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111726),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: hasShortfall
+              ? const Color(0xFFEF4444).withValues(alpha: 0.8)
+              : const Color(0xFF3B82F6).withValues(alpha: 0.4),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: hasShortfall
+                ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                : const Color(0xFF2563EB).withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Wallet, Leverage, and Refresh
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: Color(0xFF38BDF8),
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'FUNDS & MARGIN CALCULATOR',
+                    style: TextStyle(
+                      color: Color(0xFFE2E8F0),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  // Leverage Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+                    decoration: BoxDecoration(
+                      color: isIntraday
+                          ? const Color(0xFF10B981).withValues(alpha: 0.18)
+                          : const Color(0xFF64748B).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isIntraday ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.bolt_rounded,
+                          color: isIntraday ? const Color(0xFF34D399) : const Color(0xFF94A3B8),
+                          size: 14,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${state.leverage} Lev',
+                          style: TextStyle(
+                            color: isIntraday ? const Color(0xFF34D399) : const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Sync / Refresh button
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      context.read<RiskManagementBloc>().add(const FetchFundLimitEvent());
+                      context.read<RiskManagementBloc>().add(const CalculateMarginEvent());
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF334155), width: 0.8),
+                      ),
+                      child: const Icon(
+                        Icons.refresh_rounded,
+                        color: Color(0xFF94A3B8),
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Two Prominent Metric Boxes: REQUIRED MARGIN vs AVAILABLE FUNDS
+          Row(
+            children: [
+              // ── REQUIRED MARGIN BOX ────────────────────────────────────────
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF152642),
+                        const Color(0xFF0F1B2E),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.45),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'REQUIRED MARGIN',
+                            style: TextStyle(
+                              color: Color(0xFF93C5FD),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          Text(
+                            isIntraday ? 'MIS' : 'CNC',
+                            style: TextStyle(
+                              color: isIntraday ? const Color(0xFF38BDF8) : const Color(0xFF94A3B8),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      state.isMarginLoading
+                          ? const SizedBox(
+                              height: 28,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Color(0xFF38BDF8)),
+                                ),
+                              ),
+                            )
+                          : FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '₹${displayMargin.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: Color(0xFF60A5FA),
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isIntraday ? 'Intraday 5x applied' : '100% full margin',
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // ── AVAILABLE FUNDS BOX ────────────────────────────────────────
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: hasShortfall
+                          ? [
+                              const Color(0xFF2C1318),
+                              const Color(0xFF1E1015),
+                            ]
+                          : [
+                              const Color(0xFF0D2820),
+                              const Color(0xFF0F1E1A),
+                            ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: hasShortfall
+                          ? const Color(0xFFEF4444).withValues(alpha: 0.5)
+                          : const Color(0xFF10B981).withValues(alpha: 0.45),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'AVAILABLE FUNDS',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          Icon(
+                            hasShortfall ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                            color: hasShortfall ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                            size: 14,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          state.availableBalance > 0
+                              ? '₹${state.availableBalance.toStringAsFixed(2)}'
+                              : '₹0.00',
+                          style: TextStyle(
+                            color: hasShortfall
+                                ? const Color(0xFFFF6B6B)
+                                : const Color(0xFF34D399),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        state.availableBalance > 0
+                            ? (hasShortfall
+                                ? 'Shortfall: -₹${state.shortfall.toStringAsFixed(2)}'
+                                : 'Rem: ₹${remainingFunds.toStringAsFixed(2)}')
+                            : 'Syncing with Dhan...',
+                        style: TextStyle(
+                          color: hasShortfall ? const Color(0xFFF87171) : const Color(0xFF10B981),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Bottom Dynamic Status Banner
+          if (hasShortfall) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.6), width: 1),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Insufficient Balance for this Order',
+                          style: TextStyle(
+                            color: Color(0xFFFCA5A5),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Aapko ₹${state.shortfall.toStringAsFixed(2)} aur chahiye. Quantity kam karein ya Dhan account me funds transfer karein.',
+                          style: const TextStyle(
+                            color: Color(0xFFF87171),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3), width: 0.8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      state.availableBalance > 0
+                          ? 'Funds Sufficient: Order place hone ke baad ₹${remainingFunds.toStringAsFixed(2)} balance bachega.'
+                          : 'Order placed at current live market price with protective SL/TP.',
+                      style: const TextStyle(
+                        color: Color(0xFF34D399),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -877,36 +1514,16 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
     );
   }
 
-  Widget _buildPreviewRow(String label, String value, Color valueColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF94A3B8),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 13.5,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildConfirmButton(BuildContext context, RiskManagementLoaded state) {
+    final bool canSubmit = !state.isSubmitting && state.isFundSufficient;
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF10B981), // Vibrant green
+          backgroundColor: state.isFundSufficient
+              ? const Color(0xFF10B981) // Vibrant green
+              : const Color(0xFF334155), // Muted grey if insufficient
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -914,20 +1531,22 @@ class _RiskManagementViewState extends State<_RiskManagementView> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        onPressed: state.isSubmitting
-            ? null
-            : () {
+        onPressed: canSubmit
+            ? () {
                 context.read<RiskManagementBloc>().add(const SubmitOrderEvent());
-              },
+              }
+            : null,
         child: state.isSubmitting
             ? const SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
               )
-            : const Text(
-                'CONFIRM & PLACE ORDER WITH SL/TP',
-                style: TextStyle(
+            : Text(
+                !state.isFundSufficient
+                    ? 'INSUFFICIENT FUNDS (SHORTFALL: ₹${state.shortfall.toStringAsFixed(2)})'
+                    : 'CONFIRM & PLACE ORDER WITH SL/TP',
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.6,

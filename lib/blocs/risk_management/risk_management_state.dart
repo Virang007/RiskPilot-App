@@ -40,6 +40,13 @@ class RiskManagementLoaded extends RiskManagementState {
   final String priceSource;
   final bool isLive;
 
+  // Real-time Dhan Funds & Margin
+  final double availableBalance;
+  final double requiredMargin;
+  final String leverage;
+  final bool isMarginLoading;
+  final String? marginError;
+
   const RiskManagementLoaded({
     required this.stock,
     required this.isBuy,
@@ -61,6 +68,11 @@ class RiskManagementLoaded extends RiskManagementState {
     this.validationError,
     this.priceSource = 'UNKNOWN',
     this.isLive = false,
+    this.availableBalance = 0.0,
+    this.requiredMargin = 0.0,
+    this.leverage = '1.0x',
+    this.isMarginLoading = false,
+    this.marginError,
   });
 
   // Derived financial computations rounded to 2 decimals
@@ -73,6 +85,18 @@ class RiskManagementLoaded extends RiskManagementState {
   double get potentialProfit => _round(rewardPerShare * quantity);
 
   double get estimatedOrderValue => _round(entryPrice * quantity);
+
+  // Fund & Margin status helpers
+  bool get hasFundInfo => availableBalance > 0;
+
+  bool get isFundSufficient {
+    if (availableBalance <= 0) return true; // Account funds not loaded or empty
+    return availableBalance >= requiredMargin;
+  }
+
+  double get shortfall => (requiredMargin > availableBalance && availableBalance > 0)
+      ? _round(requiredMargin - availableBalance)
+      : 0.0;
 
   bool get isStandardRatio {
     if (riskPerShare <= 0.001) return false;
@@ -120,6 +144,11 @@ class RiskManagementLoaded extends RiskManagementState {
     bool? isSubmitting,
     String? priceSource,
     bool? isLive,
+    double? availableBalance,
+    double? requiredMargin,
+    String? leverage,
+    bool? isMarginLoading,
+    Object? marginError = _sentinel,
     Object? submissionSuccessMsg = _sentinel,
     Object? submissionErrorMsg = _sentinel,
     Object? validationError = _sentinel,
@@ -142,6 +171,13 @@ class RiskManagementLoaded extends RiskManagementState {
       isSubmitting: isSubmitting ?? this.isSubmitting,
       priceSource: priceSource ?? this.priceSource,
       isLive: isLive ?? this.isLive,
+      availableBalance: availableBalance ?? this.availableBalance,
+      requiredMargin: requiredMargin ?? this.requiredMargin,
+      leverage: leverage ?? this.leverage,
+      isMarginLoading: isMarginLoading ?? this.isMarginLoading,
+      marginError: identical(marginError, _sentinel)
+          ? this.marginError
+          : marginError as String?,
       submissionSuccessMsg: identical(submissionSuccessMsg, _sentinel)
           ? this.submissionSuccessMsg
           : submissionSuccessMsg as String?,
@@ -176,5 +212,10 @@ class RiskManagementLoaded extends RiskManagementState {
         validationError,
         priceSource,
         isLive,
+        availableBalance,
+        requiredMargin,
+        leverage,
+        isMarginLoading,
+        marginError,
       ];
 }

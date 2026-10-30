@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../repositories/margin_service.dart';
 import '../../repositories/stock_detail_service.dart';
 import '../../repositories/super_order_service.dart';
 import 'risk_management_event.dart';
 import 'risk_management_state.dart';
+
 class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> {
+  Timer? _marginDebounceTimer;
+
   RiskManagementBloc() : super(const RiskManagementInitial()) {
     on<InitRiskManagementEvent>(_onInit);
     on<ChangeProductTypeEvent>(_onChangeProductType);
@@ -14,7 +19,15 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
     on<SetRewardRatioEvent>(_onSetRewardRatio);
     on<UpdateStopLossEvent>(_onUpdateStopLoss);
     on<UpdateTargetPriceEvent>(_onUpdateTargetPrice);
+    on<FetchFundLimitEvent>(_onFetchFundLimit);
+    on<CalculateMarginEvent>(_onCalculateMargin);
     on<SubmitOrderEvent>(_onSubmitOrder);
+  }
+
+  @override
+  Future<void> close() {
+    _marginDebounceTimer?.cancel();
+    return super.close();
   }
 
   // ---------------------------------------------------------------------------
@@ -74,6 +87,10 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
       priceSource: event.priceSource,
       isLive: event.isLive,
     ));
+
+    // Fetch account fund limit and calculate initial margin
+    add(const FetchFundLimitEvent());
+    add(const CalculateMarginEvent());
   }
 
   // ---------------------------------------------------------------------------
@@ -86,6 +103,7 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
     if (state is RiskManagementLoaded) {
       final current = state as RiskManagementLoaded;
       emit(current.copyWith(productType: event.productType));
+      _scheduleMarginCalculation();
     }
   }
 
@@ -100,6 +118,7 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
       final current = state as RiskManagementLoaded;
       final q = event.quantity < 1 ? 1 : event.quantity;
       emit(current.copyWith(quantity: q));
+      _scheduleMarginCalculation();
     }
   }
 
@@ -144,6 +163,7 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
         validationError: err,
         submissionErrorMsg: null,
       ));
+      _scheduleMarginCalculation();
       return;
     }
 
@@ -170,6 +190,7 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
       validationError: updated.error,
       submissionErrorMsg: null,
     ));
+    _scheduleMarginCalculation();
   }
 
   // ---------------------------------------------------------------------------
@@ -370,6 +391,87 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
       validationError: null,
       submissionErrorMsg: null,
     ));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Funds & Margin Calculation Logic
+  // ---------------------------------------------------------------------------
+  void _scheduleMarginCalculation() {
+    _marginDebounceTimer?.cancel();
+    _marginDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!isClosed) {
+        add(const CalculateMarginEvent());
+      }
+    });
+  }
+
+  Future<void> _onFetchFundLimit(
+    FetchFundLimitEvent event,
+    Emitter<RiskManagementState> emit,
+  ) async {
+    if (state is! RiskManagementLoaded) return;
+    try {
+      final fundData = await MarginService.fetchFundLimits();
+      if (fundData != null && !isClosed && state is RiskManagementLoaded) {
+        final current = state as RiskManagementLoaded;
+        emit(current.copyWith(
+          availableBalance: fundData.availableBalance,
+        ));
+      }
+    } catch (e) {
+      debugPrint('[RiskManagementBloc] Error fetching fund limit: $e');
+    }
+  }
+
+  Future<void> _onCalculateMargin(
+    CalculateMarginEvent event,
+    Emitter<RiskManagementState> emit,
+  ) async {
+    if (state is! RiskManagementLoaded) return;
+    final current = state as RiskManagementLoaded;
+
+    emit(current.copyWith(isMarginLoading: true, marginError: null));
+
+    try {
+      final result = await MarginService.calculateMargin(
+        securityId: current.stock.securityId.isNotEmpty ? current.stock.securityId : current.stock.symbol,
+        exchangeSegment: current.stock.exchange.toUpperCase().contains('BSE') ? 'BSE_EQ' : 'NSE_EQ',
+        transactionType: current.isBuy ? 'BUY' : 'SELL',
+        quantity: current.quantity,
+        productType: current.productType,
+        price: current.entryPrice,
+      );
+
+      if (!isClosed && state is RiskManagementLoaded) {
+        final updated = state as RiskManagementLoaded;
+        if (result != null) {
+          emit(updated.copyWith(
+            isMarginLoading: false,
+            requiredMargin: result.totalMargin,
+            leverage: result.leverage,
+            availableBalance: result.availableBalance > 0 ? result.availableBalance : updated.availableBalance,
+            marginError: null,
+          ));
+        } else {
+          final orderVal = updated.entryPrice * updated.quantity;
+          final isIntraday = updated.productType.toUpperCase() == 'INTRADAY';
+          final estMargin = isIntraday ? (orderVal / 5.0) : orderVal;
+          emit(updated.copyWith(
+            isMarginLoading: false,
+            requiredMargin: _round(estMargin),
+            leverage: isIntraday ? '5.0x' : '1.0x',
+          ));
+        }
+      }
+    } catch (e) {
+      if (!isClosed && state is RiskManagementLoaded) {
+        final updated = state as RiskManagementLoaded;
+        emit(updated.copyWith(
+          isMarginLoading: false,
+          marginError: 'Could not calculate margin: $e',
+        ));
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -699,6 +801,12 @@ class RiskManagementBloc extends Bloc<RiskManagementEvent, RiskManagementState> 
       if ((s.stopLoss - anchor).abs() > 0.01) {
         return 'Stop Loss does not match the actual market anchor.';
       }
+    }
+
+    // Pre-order fund sufficiency check
+    if (s.availableBalance > 0 && s.requiredMargin > s.availableBalance) {
+      final shortfall = (s.requiredMargin - s.availableBalance).toStringAsFixed(2);
+      return 'Insufficient margin! Required: ₹${s.requiredMargin.toStringAsFixed(2)}, Available: ₹${s.availableBalance.toStringAsFixed(2)} (Shortfall: ₹$shortfall).';
     }
 
     return null; // Valid
